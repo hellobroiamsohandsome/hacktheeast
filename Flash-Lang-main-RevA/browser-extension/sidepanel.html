@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>ReadFluent Side Panel</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 12px; }
+    h3 { margin: 0 0 8px 0; }
+    label { display:block; margin-top:8px; font-size:12px; color:#444; }
+    input, select, textarea, button { width:100%; box-sizing:border-box; margin-top:4px; padding:8px; }
+    textarea { min-height:70px; resize: vertical; }
+    .row { display:flex; gap:8px; }
+    .row > div { flex:1; }
+    .status { margin-top:10px; font-size:12px; }
+    .ok { color:#15803d; }
+    .err { color:#b91c1c; }
+    .hint { color:#666; font-size:12px; margin-top:6px; }
+  </style>
+</head>
+<body>
+  <h3>ReadFluent</h3>
+  <div class="hint">Keep this panel open while browsing. Select text on any page to auto-capture.</div>
+
+  <label>Backend URL</label>
+  <input id="apiBase" value="http://127.0.0.1:8000" />
+
+  <label>Current Page URL</label>
+  <input id="pageUrl" readonly />
+
+  <div class="row">
+    <div>
+      <label>CEFR</label>
+      <select id="cefrLevel"><option>A1</option><option>A2</option><option>B1</option><option selected>B2</option><option>C1</option><option>C2</option></select>
+    </div>
+    <div>
+      <label>Child Mode</label>
+      <select id="childMode"><option value="false" selected>Off</option><option value="true">On</option></select>
+    </div>
+  </div>
+
+  <div class="row">
+    <div>
+      <label>Source</label>
+      <select id="sourceLanguage"><option value="auto">auto</option><option value="en" selected>en</option><option value="zh">zh</option><option value="ja">ja</option><option value="es">es</option><option value="fr">fr</option></select>
+    </div>
+    <div>
+      <label>Target</label>
+      <select id="targetLanguage"><option value="en">en</option><option value="zh" selected>zh</option><option value="ja">ja</option><option value="es">es</option><option value="fr">fr</option></select>
+    </div>
+  </div>
+
+  <label>Highlighted Text (auto-captured)</label>
+  <textarea id="highlightedText" placeholder="Select text in page to fill automatically."></textarea>
+  <button id="captureBtn">Capture Selection Now</button>
+  <button id="translateBtn">Quick Translate Selection</button>
+  <textarea id="translatedPreview" placeholder="Translation preview appears here..." readonly></textarea>
+
+  <label><input id="openQuizzesAfterCreate" type="checkbox" checked style="width:auto; margin-right:6px;" /> Auto-open Dashboard on Quizzes tab after create</label>
+  <button id="sendBtn">Create Lesson</button>
+  <button id="openDashboardBtn">Open Dashboard</button>
+
+  <div id="status" class="status"></div>
+  <script src="sidepanel.js"></script>
+</body>
+</html>
