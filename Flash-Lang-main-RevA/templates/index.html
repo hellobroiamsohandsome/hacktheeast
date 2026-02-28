@@ -25,6 +25,10 @@
     .tab-active { border-bottom: 2px solid #6366f1; color: #fafafa; }
     .transcript-line:hover { background: rgba(99, 102, 241, 0.08); }
     .transcript-line.active { background: rgba(99, 102, 241, 0.15); border-left: 3px solid #6366f1; }
+    .quiz-option { transition: all 0.2s; }
+    .quiz-option:hover { border-color: #6366f1; }
+    .quiz-option.correct { border-color: #22c55e; background: rgba(34, 197, 94, 0.1); }
+    .quiz-option.wrong { border-color: #ef4444; background: rgba(239, 68, 68, 0.1); }
   </style>
 </head>
 <body class="bg-fluent-bg text-fluent-text min-h-screen antialiased">
@@ -34,280 +38,268 @@
       <p class="text-fluent-muted mt-1 text-sm sm:text-base">Turn what you read and watch into a personalized, privacy-first language lesson.</p>
     </header>
 
+    <!-- CEFR Level Quick Start -->
     <section class="bg-fluent-card border border-fluent-border rounded-xl p-5 sm:p-6 mb-6">
-      <label class="block text-sm font-medium text-fluent-muted mb-2">YouTube URL or Article link</label>
+      <h2 class="text-lg font-semibold text-white mb-4">🎯 Quick Start - Choose Your Level</h2>
+      <p class="text-fluent-muted text-sm mb-4">Select your CEFR level to get personalized content instantly!</p>
+      <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-4">
+        <button onclick="generateByLevel('A1')" class="px-3 py-2 rounded-lg bg-fluent-bg border border-fluent-border text-white text-sm font-medium hover:border-fluent-accent hover:bg-fluent-accent/10 transition">
+          <span class="block text-lg mb-1">🟢</span>A1<br><span class="text-xs text-fluent-muted">Beginner</span>
+        </button>
+        <button onclick="generateByLevel('A2')" class="px-3 py-2 rounded-lg bg-fluent-bg border border-fluent-border text-white text-sm font-medium hover:border-fluent-accent hover:bg-fluent-accent/10 transition">
+          <span class="block text-lg mb-1">🟡</span>A2<br><span class="text-xs text-fluent-muted">Elementary</span>
+        </button>
+        <button onclick="generateByLevel('B1')" class="px-3 py-2 rounded-lg bg-fluent-bg border border-fluent-border text-white text-sm font-medium hover:border-fluent-accent hover:bg-fluent-accent/10 transition">
+          <span class="block text-lg mb-1">🟠</span>B1<br><span class="text-xs text-fluent-muted">Intermediate</span>
+        </button>
+        <button onclick="generateByLevel('B2')" class="px-3 py-2 rounded-lg bg-fluent-bg border border-fluent-border text-white text-sm font-medium hover:border-fluent-accent hover:bg-fluent-accent/10 transition">
+          <span class="block text-lg mb-1">🔵</span>B2<br><span class="text-xs text-fluent-muted">Upper-Int</span>
+        </button>
+        <button onclick="generateByLevel('C1')" class="px-3 py-2 rounded-lg bg-fluent-bg border border-fluent-border text-white text-sm font-medium hover:border-fluent-accent hover:bg-fluent-accent/10 transition">
+          <span class="block text-lg mb-1">🟣</span>C1<br><span class="text-xs text-fluent-muted">Advanced</span>
+        </button>
+        <button onclick="generateByLevel('C2')" class="px-3 py-2 rounded-lg bg-fluent-bg border border-fluent-border text-white text-sm font-medium hover:border-fluent-accent hover:bg-fluent-accent/10 transition">
+          <span class="block text-lg mb-1">⚫</span>C2<br><span class="text-xs text-fluent-muted">Mastery</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- URL Input Section -->
+    <section class="bg-fluent-card border border-fluent-border rounded-xl p-5 sm:p-6 mb-6">
+      <label class="block text-sm font-medium text-fluent-muted mb-2">Or enter a YouTube URL / Article link</label>
       <div class="flex flex-col sm:flex-row gap-3">
-        <input
-          type="url"
-          id="urlInput"
-          placeholder="https://www.youtube.com/watch?v=... or https://example.com/article"
-          class="flex-1 rounded-lg border border-fluent-border bg-fluent-bg px-4 py-3 text-white placeholder-fluent-muted focus:outline-none focus:ring-2 focus:ring-fluent-accent focus:border-transparent font-mono text-sm"
-        />
-        <div class="flex flex-wrap items-center gap-3">
-          <select id="cefrLevel" class="rounded-lg border border-fluent-border bg-fluent-bg px-3 py-3 text-white focus:outline-none focus:ring-2 focus:ring-fluent-accent font-medium text-sm">
-            <option value="A1">A1</option>
-            <option value="A2">A2</option>
-            <option value="B1">B1</option>
-            <option value="B2" selected>B2</option>
-            <option value="C1">C1</option>
-            <option value="C2">C2</option>
-          </select>
-          <button
-            id="generateBtn"
-            class="px-5 py-3 rounded-lg bg-fluent-accent hover:bg-fluent-accentDim text-white font-medium text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-fluent-bg focus:ring-fluent-accent disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Generate Lesson
-          </button>
-        </div>
+        <input type="url" id="urlInput" placeholder="https://www.youtube.com/watch?v=..." class="flex-1 rounded-lg border border-fluent-border bg-fluent-bg px-4 py-3 text-white placeholder-fluent-muted focus:outline-none focus:ring-2 focus:ring-fluent-accent font-mono text-sm">
+        <select id="cefrLevel" class="rounded-lg border border-fluent-border bg-fluent-bg px-3 py-3 text-white focus:outline-none focus:ring-2 focus:ring-fluent-accent font-medium text-sm">
+          <option value="A1">A1</option>
+          <option value="A2">A2</option>
+          <option value="B1">B1</option>
+          <option value="B2" selected>B2</option>
+          <option value="C1">C1</option>
+          <option value="C2">C2</option>
+        </select>
+        <button id="generateBtn" class="px-5 py-3 rounded-lg bg-fluent-accent hover:bg-fluent-accentDim text-white font-medium text-sm">Generate</button>
       </div>
       <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label class="block text-xs text-fluent-muted mb-1">Video / content language (source)</label>
-          <select id="sourceLanguage" class="w-full rounded-lg border border-fluent-border bg-fluent-bg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-fluent-accent text-sm">
-            <option value="auto">Auto-detect</option>
+          <label class="block text-xs text-fluent-muted mb-1">Source Language</label>
+          <select id="sourceLanguage" class="w-full rounded-lg border border-fluent-border bg-fluent-bg px-3 py-2 text-white text-sm">
+            <option value="auto">Auto</option>
             <option value="en" selected>English</option>
             <option value="zh">中文</option>
-            <option value="es">Español</option>
-            <option value="fr">Français</option>
-            <option value="de">Deutsch</option>
             <option value="ja">日本語</option>
-            <option value="ko">한국어</option>
+            <option value="es">Español</option>
           </select>
         </div>
         <div>
-          <label class="block text-xs text-fluent-muted mb-1">My learning language (target)</label>
-          <select id="targetLanguage" class="w-full rounded-lg border border-fluent-border bg-fluent-bg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-fluent-accent text-sm">
+          <label class="block text-xs text-fluent-muted mb-1">Target Language</label>
+          <select id="targetLanguage" class="w-full rounded-lg border border-fluent-border bg-fluent-bg px-3 py-2 text-white text-sm">
             <option value="en" selected>English</option>
             <option value="zh">中文</option>
-            <option value="es">Español</option>
-            <option value="fr">Français</option>
-            <option value="de">Deutsch</option>
             <option value="ja">日本語</option>
-            <option value="ko">한국어</option>
+            <option value="es">Español</option>
           </select>
         </div>
       </div>
-      <div class="mt-3">
-        <label class="block text-xs text-fluent-muted mb-1">Highlighted text (from extension — optional)</label>
-        <textarea id="highlightedText" rows="2" placeholder="Paste highlighted text from the browser extension to focus vocabulary here..."
-          class="w-full rounded-lg border border-fluent-border bg-fluent-bg px-3 py-2 text-white placeholder-fluent-muted focus:outline-none focus:ring-2 focus:ring-fluent-accent text-sm resize-none"></textarea>
-      </div>
       <div class="mt-4 flex items-center gap-2">
-        <button id="childModeToggle" role="switch" aria-checked="false"
-          class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-fluent-border transition-colors focus:outline-none focus:ring-2 focus:ring-fluent-accent focus:ring-offset-2 focus:ring-offset-fluent-bg">
-          <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition translate-x-0.5" aria-hidden="true"></span>
+        <button id="childModeToggle" class="relative inline-flex h-6 w-11 rounded-full bg-fluent-border">
+          <span class="inline-block h-5 w-5 transform rounded-full bg-white transition translate-x-0.5"></span>
         </button>
-        <span class="text-sm text-fluent-muted">Child Mode (Privacy Filter)</span>
+        <span class="text-sm text-fluent-muted">Child Mode</span>
       </div>
     </section>
 
     <div id="loadingBlock" class="hidden bg-fluent-card border border-fluent-border rounded-xl p-8 text-center">
       <div class="inline-block h-8 w-8 animate-spin rounded-full border-2 border-fluent-accent border-t-transparent"></div>
-      <p class="mt-3 text-fluent-muted">Transcribing and analyzing…</p>
+      <p id="loadingText" class="mt-3 text-fluent-muted">Loading...</p>
     </div>
 
     <div id="errorBlock" class="hidden bg-red-950/30 border border-red-800 rounded-xl p-4 text-red-200 text-sm"></div>
 
     <section id="learningHub" class="hidden bg-fluent-card border border-fluent-border rounded-xl overflow-hidden">
-      <div class="px-5 py-4 border-b border-fluent-border flex flex-wrap items-center justify-between gap-2">
+      <div class="px-5 py-4 border-b border-fluent-border flex justify-between items-center">
         <h2 id="lessonTitle" class="text-lg font-semibold text-white"></h2>
-        <a id="practiceSessionLink" href="#" target="_blank" rel="noopener" class="text-sm text-fluent-accent hover:underline hidden">Open practice session →</a>
+        <button id="ttsBtn" class="text-sm text-fluent-accent">🔊 Listen</button>
       </div>
       <div class="flex border-b border-fluent-border">
-        <button data-tab="transcript" class="tab-btn px-5 py-3 text-sm font-medium text-fluent-muted hover:text-white tab-active">Interactive Transcript</button>
-        <button data-tab="shadowing" class="tab-btn px-5 py-3 text-sm font-medium text-fluent-muted hover:text-white">Shadowing Practice</button>
-        <button data-tab="flashcards" class="tab-btn px-5 py-3 text-sm font-medium text-fluent-muted hover:text-white">Vocabulary Flashcards</button>
+        <button data-tab="transcript" class="tab-btn px-5 py-3 text-sm font-medium text-fluent-muted tab-active">Transcript</button>
+        <button data-tab="reading" class="tab-btn px-5 py-3 text-sm font-medium text-fluent-muted">Reading</button>
+        <button data-tab="quizzes" class="tab-btn px-5 py-3 text-sm font-medium text-fluent-muted">Quizzes</button>
+        <button data-tab="vocabulary" class="tab-btn px-5 py-3 text-sm font-medium text-fluent-muted">Vocabulary</button>
       </div>
       <div class="p-5">
         <div id="panel-transcript" class="tab-panel">
-          <p class="text-fluent-muted text-xs mb-2">Dual language: your learning language + video language. Click a line to seek in the video.</p>
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            <div class="lg:col-span-1 rounded-lg bg-fluent-bg border border-fluent-border overflow-hidden aspect-video">
-              <iframe id="videoEmbed" class="w-full h-full" src="" title="Video" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            <div class="lg:col-span-1 rounded-lg bg-fluent-bg aspect-video">
+              <iframe id="videoEmbed" class="w-full h-full" allowfullscreen></iframe>
             </div>
-            <div class="lg:col-span-2 max-h-[420px] overflow-y-auto space-y-1 pr-2" id="transcriptList"></div>
+            <div class="lg:col-span-2 max-h-[420px] overflow-y-auto space-y-1" id="transcriptList"></div>
           </div>
         </div>
-        <div id="panel-shadowing" class="tab-panel hidden">
-          <p class="text-fluent-muted text-sm mb-4">Shadowing: repeat after the audio. Practice session URL below.</p>
-          <div id="shadowingSentences" class="space-y-3"></div>
-          <a id="shadowingPracticeLink" href="#" target="_blank" rel="noopener" class="inline-block mt-2 text-fluent-accent text-sm hover:underline hidden">Open URL for shadowing practice →</a>
+        <div id="panel-reading" class="tab-panel hidden">
+          <div id="articleContent" class="text-white"></div>
         </div>
-        <div id="panel-flashcards" class="tab-panel hidden">
-          <p class="text-fluent-muted text-xs mb-3">Vocabulary flashcards from this lesson (saved to your account).</p>
+        <div id="panel-quizzes" class="tab-panel hidden">
+          <div id="quizContainer"></div>
+        </div>
+        <div id="panel-vocabulary" class="tab-panel hidden">
           <div id="flashcardsList" class="grid gap-3 sm:grid-cols-2"></div>
         </div>
       </div>
     </section>
-
-    <div id="skeletonHub" class="bg-fluent-card border border-fluent-border rounded-xl overflow-hidden">
-      <div class="h-12 px-5 flex items-center border-b border-fluent-border"><div class="h-4 w-48 bg-fluent-border rounded animate-pulse"></div></div>
-      <div class="flex border-b border-fluent-border">
-        <div class="px-5 py-3 w-40 bg-fluent-border/50 rounded-b-none rounded-t mx-1 mt-0 h-10"></div>
-        <div class="px-5 py-3 w-32 bg-fluent-border/30 rounded-b-none rounded-t mx-1 mt-0 h-10"></div>
-        <div class="px-5 py-3 w-36 bg-fluent-border/30 rounded-b-none rounded-t mx-1 mt-0 h-10"></div>
-      </div>
-      <div class="p-5 grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <div class="aspect-video bg-fluent-bg rounded-lg animate-pulse"></div>
-        <div class="lg:col-span-2 space-y-2">
-          <div class="h-4 bg-fluent-border rounded animate-pulse w-full"></div>
-          <div class="h-4 bg-fluent-border rounded animate-pulse w-5/6"></div>
-          <div class="h-4 bg-fluent-border rounded animate-pulse w-4/6"></div>
-          <div class="h-4 bg-fluent-border rounded animate-pulse w-full"></div>
-          <div class="h-4 bg-fluent-border rounded animate-pulse w-3/4"></div>
-        </div>
-      </div>
-    </div>
   </div>
 
   <script>
-    const urlInput = document.getElementById('urlInput');
-    const cefrLevel = document.getElementById('cefrLevel');
-    const sourceLanguage = document.getElementById('sourceLanguage');
-    const targetLanguage = document.getElementById('targetLanguage');
-    const highlightedText = document.getElementById('highlightedText');
-    const generateBtn = document.getElementById('generateBtn');
-    const childModeToggle = document.getElementById('childModeToggle');
-    const loadingBlock = document.getElementById('loadingBlock');
-    const errorBlock = document.getElementById('errorBlock');
-    const learningHub = document.getElementById('learningHub');
-    const skeletonHub = document.getElementById('skeletonHub');
-    const lessonTitle = document.getElementById('lessonTitle');
-    const practiceSessionLink = document.getElementById('practiceSessionLink');
-    const transcriptList = document.getElementById('transcriptList');
-    const videoEmbed = document.getElementById('videoEmbed');
-    const shadowingSentences = document.getElementById('shadowingSentences');
-    const shadowingPracticeLink = document.getElementById('shadowingPracticeLink');
-    const flashcardsList = document.getElementById('flashcardsList');
-
-    let childMode = false;
     let currentContent = null;
+    let childMode = false;
+    let currentQuizIndex = 0;
+    let quizScore = 0;
 
-    childModeToggle.addEventListener('click', () => {
+    // Global function for level buttons
+    function generateByLevel(level) {
+      console.log('Generating level:', level);
+      document.getElementById('cefrLevel').value = level;
+     document.getElementById('urlInput').value = '';
+      generateLesson('', level);
+    }
+
+    function generateLesson(url, level) {
+      const endpoint = url ? '/process-content' : '/generate-by-level';
+      
+      document.getElementById('errorBlock').classList.add('hidden');
+      document.getElementById('loadingBlock').classList.remove('hidden');
+      document.getElementById('learningHub').classList.add('hidden');
+      document.getElementById('generateBtn').disabled = true;
+      document.getElementById('loadingText').textContent = url ? 'Processing...' : 'Generating ' + level + ' lesson...';
+
+      const payload = url ? {
+        url: url,
+        type: url.includes('youtube') ? 'youtube' : 'article',
+        cefrLevel: level,
+        isChildMode: childMode,
+        sourceLanguage: document.getElementById('sourceLanguage').value,
+        targetLanguage: document.getElementById('targetLanguage').value
+      } : {
+        cefrLevel: level,
+        targetLanguage: document.getElementById('targetLanguage').value,
+        sourceLanguage: document.getElementById('sourceLanguage').value,
+        isChildMode: childMode
+      };
+
+      console.log('Sending to:', endpoint, payload);
+
+      fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json())
+      .then(data => {
+        console.log('Response:', data);
+        if (data.detail) throw new Error(data.detail);
+        currentContent = data;
+        renderLesson(data);
+        document.getElementById('loadingBlock').classList.add('hidden');
+        document.getElementById('learningHub').classList.remove('hidden');
+      })
+      .catch(err => {
+        console.error('Error:', err);
+        document.getElementById('errorBlock').classList.remove('hidden');
+        document.getElementById('errorBlock').textContent = err.message;
+        document.getElementById('loadingBlock').classList.add('hidden');
+      })
+      .finally(() => {
+        document.getElementById('generateBtn').disabled = false;
+      });
+    }
+
+    function renderLesson(data) {
+      document.getElementById('lessonTitle').textContent = data.title || 'Lesson';
+      
+      // Video
+      const mediaUrl = data.mediaUrl || '';
+      const ytMatch = mediaUrl.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
+      document.getElementById('videoEmbed').src = ytMatch ? 'https://www.youtube.com/embed/' + ytMatch[1] : '';
+
+      // Transcript
+      const transcriptList = document.getElementById('transcriptList');
+      transcriptList.innerHTML = '';
+      (data.transcript || []).forEach((line, i) => {
+        const div = document.createElement('div');
+        div.className = 'px-3 py-2 rounded text-sm text-white';
+        div.innerHTML = '<span class="text-fluent-muted text-xs">' + (line.timestamp || '') + '</span> ' + (line.text || '') + (line.translatedText ? '<br><span class="text-fluent-muted text-xs">' + line.translatedText + '</span>' : '');
+        transcriptList.appendChild(div);
+      });
+
+      // Reading
+      document.getElementById('articleContent').innerHTML = data.article || data.transcript?.map(t => t.text).join('<br>') || 'No content';
+
+      // Vocabulary
+      const flashcardsList = document.getElementById('flashcardsList');
+      flashcardsList.innerHTML = '';
+      const flashcards = data.vocabularyFlashcards || data.flashcards || [];
+      flashcards.forEach(card => {
+        const div = document.createElement('div');
+        div.className = 'bg-fluent-bg border border-fluent-border rounded-lg p-4';
+        div.innerHTML = '<p class="font-semibold text-white">' + (card.word || '') + '</p><p class="text-fluent-muted text-sm">' + (card.definition || '') + '</p>';
+        flashcardsList.appendChild(div);
+      });
+
+      // Quizzes
+      renderQuizzes(data.quizzes || []);
+    }
+
+    function renderQuizzes(quizzes) {
+      const container = document.getElementById('quizContainer');
+      if (!quizzes || quizzes.length === 0) {
+        container.innerHTML = '<p class="text-fluent-muted">No quizzes available.</p>';
+        return;
+      }
+      currentQuizIndex = 0;
+      quizScore = 0;
+      showQuiz(quizzes, container);
+    }
+
+    function showQuiz(quizzes, container) {
+      if (currentQuizIndex >= quizzes.length) {
+        container.innerHTML = '<div class="text-center py-8"><p class="text-2xl font-bold text-white">Score: ' + quizScore + '/' + quizzes.length + '</p></div>';
+        return;
+      }
+      
+      const q = quizzes[currentQuizIndex];
+      container.innerHTML = '<div class="bg-fluent-bg border border-fluent-border rounded-lg p-5"><p class="text-white font-medium mb-4">' + (currentQuizIndex + 1) + '. ' + (q.question || '') + '</p><div class="space-y-2">' +
+        (q.options || []).map((opt, i) => '<button class="quiz-option w-full text-left px-4 py-3 rounded-lg border border-fluent-border text-white" data-index="' + i + '">' + opt + '</button>').join('') +
+        '</div></div>';
+      
+      container.querySelectorAll('.quiz-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const selected = parseInt(btn.dataset.index);
+          if (selected === q.correct) quizScore++;
+          currentQuizIndex++;
+          showQuiz(quizzes, container);
+        });
+      });
+    }
+
+    // Button handlers
+    document.getElementById('generateBtn').addEventListener('click', () => {
+      const url = document.getElementById('urlInput').value.trim();
+      const level = document.getElementById('cefrLevel').value;
+      if (url) generateLesson(url, level);
+    });
+
+    document.getElementById('childModeToggle').addEventListener('click', () => {
       childMode = !childMode;
-      childModeToggle.setAttribute('aria-checked', childMode);
-      childModeToggle.querySelector('span').style.transform = childMode ? 'translateX(1.25rem)' : 'translateX(0.125rem)';
-      childModeToggle.classList.toggle('bg-fluent-accent', childMode);
-      childModeToggle.classList.toggle('bg-fluent-border', !childMode);
+      document.getElementById('childModeToggle').classList.toggle('bg-fluent-accent', childMode);
+      document.getElementById('childModeToggle').classList.toggle('bg-fluent-border', !childMode);
     });
 
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('tab-active'); b.classList.add('text-fluent-muted'); });
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tab-active'));
         btn.classList.add('tab-active');
-        btn.classList.remove('text-fluent-muted');
         document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
-        const panel = document.getElementById('panel-' + btn.dataset.tab);
-        if (panel) panel.classList.remove('hidden');
+        document.getElementById('panel-' + btn.dataset.tab).classList.remove('hidden');
       });
-    });
-
-    function showError(msg) {
-      errorBlock.classList.remove('hidden');
-      errorBlock.textContent = msg;
-      loadingBlock.classList.add('hidden');
-      generateBtn.disabled = false;
-    }
-
-    function hideError() {
-      errorBlock.classList.add('hidden');
-    }
-
-    generateBtn.addEventListener('click', async () => {
-      const url = (urlInput.value || '').trim();
-      if (!url) {
-        showError('Please enter a YouTube URL or article link.');
-        return;
-      }
-      hideError();
-      loadingBlock.classList.remove('hidden');
-      skeletonHub.classList.add('hidden');
-      learningHub.classList.add('hidden');
-      generateBtn.disabled = true;
-
-      try {
-        const res = await fetch('/process-content', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url,
-            type: url.includes('youtube.com') || url.includes('youtu.be') ? 'youtube' : 'article',
-            cefrLevel: cefrLevel.value,
-            isChildMode: childMode,
-            sourceLanguage: sourceLanguage.value,
-            targetLanguage: targetLanguage.value,
-            highlightedText: (highlightedText.value || '').trim() || null
-          })
-        });
-
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          const detail = data.detail;
-          const msg = Array.isArray(detail) ? detail[0] : (typeof detail === 'string' ? detail : (detail?.msg || JSON.stringify(detail) || res.statusText));
-          throw new Error(msg || 'Failed to process content');
-        }
-
-        currentContent = data;
-        lessonTitle.textContent = data.title || 'Lesson';
-        const practiceUrl = data.practiceSessionUrl || data.mediaUrl || url;
-        practiceSessionLink.href = practiceUrl;
-        practiceSessionLink.classList.remove('hidden');
-        shadowingPracticeLink.href = practiceUrl;
-        shadowingPracticeLink.classList.remove('hidden');
-
-        const mediaUrl = data.mediaUrl || url;
-        let embedSrc = '';
-        const ytMatch = mediaUrl.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
-        if (ytMatch) embedSrc = 'https://www.youtube.com/embed/' + ytMatch[1] + '?enablejsapi=1';
-        videoEmbed.src = embedSrc;
-
-        transcriptList.innerHTML = '';
-        const transcript = data.transcript || [];
-        transcript.forEach((line, i) => {
-          const div = document.createElement('div');
-          div.className = 'transcript-line px-3 py-2 rounded cursor-pointer text-sm';
-          div.dataset.index = String(i);
-          div.innerHTML = '<span class="text-fluent-muted font-mono text-xs">' + (line.timestamp || '') + '</span><br><span class="text-white">' + (line.text || '') + '</span>' + (line.translatedText ? '<br><span class="text-fluent-muted text-xs">' + line.translatedText + '</span>' : '');
-          div.addEventListener('click', () => {
-            document.querySelectorAll('.transcript-line').forEach(el => el.classList.remove('active'));
-            div.classList.add('active');
-            if (videoEmbed.src && line.timestamp) {
-              const [m, s] = (line.timestamp + '').split(':').map(Number);
-              const sec = (m || 0) * 60 + (s || 0);
-              if (videoEmbed.contentWindow && videoEmbed.contentWindow.postMessage) {
-                videoEmbed.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [sec, true] }), '*');
-              }
-            }
-          });
-          transcriptList.appendChild(div);
-        });
-
-        shadowingSentences.innerHTML = '';
-        transcript.slice(0, 5).forEach(line => {
-          const p = document.createElement('p');
-          p.className = 'text-white text-sm border-l-2 border-fluent-accent pl-3';
-          p.textContent = line.text || '';
-          shadowingSentences.appendChild(p);
-        });
-        if (transcript.length === 0) shadowingSentences.innerHTML = '<p class="text-fluent-muted text-sm">No sentences yet. Generate a lesson from a YouTube video or article.</p>';
-
-        flashcardsList.innerHTML = '';
-        const flashcards = data.vocabularyFlashcards || data.flashcards || [];
-        flashcards.forEach(card => {
-          const div = document.createElement('div');
-          div.className = 'bg-fluent-bg border border-fluent-border rounded-lg p-4';
-          div.innerHTML = '<p class="font-semibold text-white">' + (card.word || '') + '</p><p class="text-fluent-muted text-xs mt-1">' + (card.definition || '') + '</p><p class="text-fluent-muted text-xs mt-2 italic">' + (card.context || '') + '</p>';
-          flashcardsList.appendChild(div);
-        });
-        if (flashcards.length === 0) flashcardsList.innerHTML = '<p class="text-fluent-muted col-span-2">No flashcards generated yet.</p>';
-
-        loadingBlock.classList.add('hidden');
-        learningHub.classList.remove('hidden');
-      } catch (err) {
-        showError(err.message || 'Something went wrong.');
-      } finally {
-        generateBtn.disabled = false;
-      }
     });
   </script>
 </body>
