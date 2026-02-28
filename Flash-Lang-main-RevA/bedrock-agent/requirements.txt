@@ -1,0 +1,5 @@
+bedrock-agentcore
+bedrock-agentcore-starter-toolkit
+requests
+youtube-transcript-api
+beautifulsoup4
