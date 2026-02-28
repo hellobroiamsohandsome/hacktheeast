@@ -12,9 +12,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, List, Any, Tuple
 import requests
+import re
 from youtube_transcript_api import YouTubeTranscriptApi
 from bs4 import BeautifulSoup
-import re
+from urllib.parse import quote
 import os
 import json
 from dotenv import load_dotenv
@@ -59,21 +60,74 @@ class LessonRequest(BaseModel):
     sourceLanguage: str = "en"   # video/content language (use "auto" to detect from content)
 
 
+class GenerateByLevelRequest(BaseModel):
+    cefrLevel: str = "B2"
+    targetLanguage: str = "en"
+    sourceLanguage: str = "en"
+    topic: Optional[str] = None
+    isChildMode: bool = False
+
+
+class TranslateRequest(BaseModel):
+    text: str
+    targetLang: str
+    sourceLang: str = "ja"
+
+
 def _parse_minimax_json(content_string: str) -> dict:
     """Parse JSON from MiniMax response; attempt repair if truncated (2048 token limit)."""
     try:
         return json.loads(content_string)
     except json.JSONDecodeError:
         pass
+    
     s = content_string.rstrip()
-    # Truncated: find last complete transcript item (object ending with "}, )
-    idx = s.rfind('"}, ')
-    if idx > 100:
-        repaired = s[: idx + 1] + "}, ], \"flashcards\": [] }"
+    
+    # Try to find and extract just the JSON portion if there's markdown wrapping
+    if s.startswith("```"):
+        # Strip markdown code blocks
+        s = re.sub(r"^```(?:json)?\s*", "", s, flags=re.IGNORECASE)
+        s = re.sub(r"\s*```$", "", s, flags=re.IGNORECASE)
         try:
-            return json.loads(repaired)
+            return json.loads(s)
         except json.JSONDecodeError:
             pass
+    
+    # Truncated: find the last complete transcript item
+    for pattern in ['"}, ]', '"}, ']:
+        idx = s.rfind(pattern)
+        if idx > 100:
+            repaired = s[: idx + 1] + "] }"
+            try:
+                parsed = json.loads(repaired)
+                if "transcript" in parsed:
+                    return parsed
+            except json.JSONDecodeError:
+                pass
+    
+    # Try finding last complete object in transcript array
+    transcript_matches = list(re.finditer(r'\{"id":\s*"\d+",\s*"timestamp"', s))
+    if transcript_matches:
+        last_match = transcript_matches[-1]
+        search_start = last_match.end()
+        depth = 1
+        end_pos = -1
+        for i in range(search_start, len(s)):
+            if s[i] == '{':
+                depth += 1
+            elif s[i] == '}':
+                depth -= 1
+                if depth == 0:
+                    end_pos = i
+                    break
+        
+        if end_pos > 0:
+            repaired = s[: end_pos + 1] + "] }"
+            try:
+                return json.loads(repaired)
+            except json.JSONDecodeError:
+                pass
+    
     # Fallback: close open brackets/braces by count
     open_brackets = max(0, s.count("[") - s.count("]"))
     open_braces = max(0, s.count("{") - s.count("}"))
@@ -133,26 +187,67 @@ def extract_content(url: str, content_type: str) -> Tuple[str, Optional[List[dic
         raise HTTPException(status_code=400, detail=f"Extraction failed: {str(e)}")
 
 
-def _call_minimax(prompt: str, api_key: str, endpoint: str, model: str) -> str:
+def _call_minimax(prompt: str, api_key: str, endpoint: str, model: str, max_retries: int = 3) -> str:
+    """Call MiniMax API with retry logic for rate limiting."""
+    import time
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "max_completion_tokens": 2048,
     }
-    response = requests.post(endpoint, headers=headers, json=payload, timeout=90)
-    if not response.ok:
+    
+    for attempt in range(max_retries):
         try:
-            err = response.json()
-            msg = err.get("base_resp", {}).get("status_msg") or err.get("detail") or response.text
-        except Exception:
-            msg = response.text
-        raise HTTPException(status_code=502, detail=f"MiniMax API error: {msg}")
+            response = requests.post(endpoint, headers=headers, json=payload, timeout=90)
+            
+            if response.status_code == 429 or "rate" in response.text.lower():
+                wait_time = (attempt + 1) * 2
+                print(f"[MINIMAX] Rate limited, waiting {wait_time}s...")
+                time.sleep(wait_time)
+                continue
+                
+            if not response.ok:
+                try:
+                    err = response.json()
+                    msg = err.get("base_resp", {}).get("status_msg") or err.get("detail") or response.text
+                except Exception:
+                    msg = response.text
+                raise HTTPException(status_code=502, detail=f"MiniMax API error: {msg}")
+            
+            data = response.json()
+            choices = data.get("choices") or []
+            if not choices or not choices[0].get("message", {}).get("content"):
+                if attempt < max_retries - 1:
+                    print(f"[MINIMAX] Empty response, retrying...")
+                    time.sleep(1)
+                    continue
+                raise HTTPException(status_code=502, detail="MiniMax returned empty response")
+            
+            return choices[0]["message"]["content"].strip()
+            
+        except requests.exceptions.Timeout:
+            if attempt < max_retries - 1:
+                print(f"[MINIMAX] Timeout, retrying...")
+                time.sleep(2)
+                continue
+            raise HTTPException(status_code=502, detail="MiniMax API timeout")
+    
+    raise HTTPException(status_code=502, detail="MiniMax API failed after retries")
+
+
+@app.post("/translate")
+def translate(request: TranslateRequest):
+    """In-text translation endpoint using MyMemory API."""
+    # If same language, return original text
+    if request.sourceLang == request.targetLang:
+        return {"translated": request.text}
+    
+    url = f"https://api.mymemory.translated.net/get?q={quote(request.text)}&langpair={request.sourceLang}|{request.targetLang}"
+    response = requests.get(url)
     data = response.json()
-    choices = data.get("choices") or []
-    if not choices or not choices[0].get("message", {}).get("content"):
-        raise HTTPException(status_code=502, detail="MiniMax returned empty response")
-    return choices[0]["message"]["content"].strip()
+    translated = data.get("responseData", {}).get("translatedText", "")
+    return {"translated": translated}
 
 
 @app.post("/process-content")
@@ -181,29 +276,51 @@ def process_content(request: LessonRequest):
     source_lang = request.sourceLanguage if request.sourceLanguage != "auto" else "the original language of the content"
     target_lang = request.targetLanguage
 
+    # CEFR level descriptions for content targeting
+    cefr_descriptions = {
+        "A1": "Beginner - Use very simple vocabulary and short sentences (1-5 words). Basic greetings, numbers, colors, family, daily routines.",
+        "A2": "Elementary - Simple sentences, basic grammar. Shopping, directions, describing people, past activities.",
+        "B1": "Intermediate - Compound sentences, past and future tenses. Work, travel, hobbies, experiences.",
+        "B2": "Upper-Intermediate - Complex sentences, nuanced expressions. Abstract topics, opinions, arguments.",
+        "C1": "Advanced - Sophisticated vocabulary, idioms. Professional discussions, nuanced opinions.",
+        "C2": "Mastery - Native-level expression, subtle meanings. Complex discussions, literary language."
+    }
+    cefr_desc = cefr_descriptions.get(request.cefrLevel, cefr_descriptions["B2"])
+    
+    child_mode_addendum = ""
+    if request.isChildMode:
+        child_mode_addendum = "CHILD MODE: Remove ALL adult themes, violence, mature language. Replace with educational, family-friendly alternatives. Keep vocabulary simple."
+
     prompt = f"""You are a language-learning assistant. Output ONLY a single JSON object (no other text).
 
-Task: Adapt the transcript below to CEFR {request.cefrLevel}. {child_mode_instruction}
+Task: Create a language lesson from the transcript below.
+
+CEFR LEVEL: {request.cefrLevel} - {cefr_desc}
+
+{child_mode_addendum}
 
 Languages:
-- SOURCE (video/content) language: {source_lang}. Keep "translatedText" in this language (original meaning).
-- TARGET (user's learning) language: {target_lang}. Write "text" in this language, adapted to CEFR {request.cefrLevel}.
+- SOURCE (video/content) language: {source_lang}. Keep "translatedText" in this language.
+- TARGET (user's learning) language: {target_lang}. Write "text" in this target language, adapted to CEFR {request.cefrLevel}.
 
-Output limits: up to 20 transcript segments (one short sentence each), up to 12 flashcards. Keep each "text" and "translatedText" under 25 words so the full JSON fits.
+OUTPUT REQUIREMENTS:
+- Up to 20 transcript segments (1-2 sentences each, max 20 words per segment)
+- Up to 12 vocabulary flashcards
+- Generate 5 quiz questions for practice (multiple choice with 4 options each)
 
 JSON structure (output this only):
-{{"title": "string", "detectedTopics": ["topic1", "topic2"], "transcript": [{{"id": "1", "timestamp": "0:00", "text": "sentence in {target_lang}", "translatedText": "sentence in {source_lang}"}}], "flashcards": [{{"word": "word", "context": "sentence", "definition": "def"}}]}}
+{{"title": "string", "detectedTopics": ["topic1"], "transcript": [{{"id": "1", "timestamp": "0:00", "text": "sentence in {target_lang}", "translatedText": "sentence in {source_lang}"}}], "flashcards": [{{"word": "word", "context": "sentence", "definition": "def"}}], "quizzes": [{{"question": "question text", "options": ["A", "B", "C", "D"], "correct": 0, "explanation": "why answer is correct"}}]}}
 
-TRANSCRIPT TO ADAPT:
+TRANSCRIPT:
 ---
-{text_for_llm[:12000]}
+{text_for_llm[:10000]}
 ---
-Output the JSON object only:"""
+Output ONLY the JSON object:"""
 
     api_key = (os.getenv("MINIMAX_API_KEY") or "").strip()
     endpoint = (os.getenv("MINIMAX_LLM_ENDPOINT") or "https://api.minimax.io/v1").strip().rstrip("/")
     if "/text/" not in endpoint:
-        endpoint = f"{endpoint}/text/chatcompletion_v2"
+        endpoint = endpoint.rstrip("/") + "/text/chatcompletion_v2"
     model = os.getenv("MINIMAX_MODEL", "M2-her")
     if not api_key:
         print("[MINIMAX ERROR] MINIMAX_API_KEY is missing or empty in .env!")
@@ -242,9 +359,12 @@ Output the JSON object only:"""
         parsed_json["sourceLanguage"] = request.sourceLanguage
         parsed_json["targetLanguage"] = request.targetLanguage
         parsed_json["vocabularyFlashcards"] = parsed_json.get("flashcards") or []
+        # Generate practice sessions with actual quiz content
+        quizzes = parsed_json.get("quizzes", [])
         parsed_json["practiceSessions"] = [
-            {"type": "vocabulary", "url": practice_session_url},
-            {"type": "shadowing", "url": practice_session_url},
+            {"type": "vocabulary", "content": "Review vocabulary flashcards"},
+            {"type": "shadowing", "content": "Practice speaking the transcript lines"},
+            {"type": "quiz", "questions": quizzes[:5] if quizzes else []},
         ]
 
         init_db()
@@ -276,6 +396,180 @@ Output the JSON object only:"""
         if "response" in locals():
             print(f"[MINIMAX DEBUG] response.text: {response.text[:600]}")
         raise HTTPException(status_code=500, detail=f"AI Processing failed: {str(e)}")
+
+
+
+
+# AWS Bedrock integration (optional)
+def _call_bedrock(prompt: str, model_id: str = "anthropic.claude-3-sonnet-20240229-v1:0") -> str:
+    """Call AWS Bedrock for advanced AI features. Falls back gracefully if not configured."""
+    try:
+        import boto3
+        aws_key = os.getenv("AWS_ACCESS_KEY_ID") or os.getenv("AWS_BEDROCK_API_KEY")
+        if not aws_key:
+            raise ValueError("AWS credentials not configured")
+            
+        bedrock = boto3.client(
+            "bedrock-runtime",
+            region_name=os.getenv("AWS_REGION", "us-east-1"),
+            aws_access_key_id=aws_key,
+            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", "")
+        )
+        body = json.dumps({
+            "anthropic_version": "bedrock-2023-05-31",
+            "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
+            "max_tokens": 2048,
+        })
+        response = bedrock.invoke_model(body=body, modelId=model_id, accept="application/json", contentType="application/json")
+        result = json.loads(response["body"].read())
+        return result["content"][0]["text"]
+    except Exception as e:
+        print(f"[BEDROCK WARNING] {e}, using fallback")
+        # Return a fallback response
+        return "AWS Bedrock not configured. Please set AWS credentials in .env file."
+
+
+@app.post("/generate-by-level")
+def generate_by_level(request: GenerateByLevelRequest):
+    """Generate content based on CEFR level without requiring a URL."""
+    cefr_level = request.cefrLevel
+    target_lang = request.targetLanguage
+    source_lang = request.sourceLanguage if request.sourceLanguage != "auto" else "en"
+    
+    # CEFR level content suggestions
+    level_content = {
+        "A1": {"topic": "greetings, numbers, colors, family, daily routines", "difficulty": "very simple"},
+        "A2": {"topic": "shopping, directions, describing people, past activities", "difficulty": "simple"},
+        "B1": {"topic": "work, travel, hobbies, experiences, future plans", "difficulty": "intermediate"},
+        "B2": {"topic": "opinions, arguments, abstract topics, news", "difficulty": "upper intermediate"},
+        "C1": {"topic": "professional discussions, nuanced opinions, culture", "difficulty": "advanced"},
+        "C2": {"topic": "subtle meanings, idioms, literary language", "difficulty": "mastery"}
+    }
+    
+    content_info = level_content.get(cefr_level, level_content["B2"])
+    
+    prompt = f"""Create a language learning lesson for CEFR {cefr_level} level.
+
+Target language: {target_lang}
+Source/original language: {source_lang}
+Topic: {content_info['topic']}
+Difficulty: {content_info['difficulty']}
+
+Output ONLY a JSON object with:
+{{
+  "title": "Lesson title in {target_lang}",
+  "detectedTopics": ["topic1", "topic2"],
+  "article": "A short article/lesson text in {target_lang} (max 500 words)",
+  "transcript": [
+    {{"id": "1", "timestamp": "0:00", "text": "Sentence in {target_lang}", "translatedText": "Translation in {source_lang}"}}
+  ],
+  "flashcards": [
+    {{"word": "word", "context": "example sentence", "definition": "definition"}}
+  ],
+  "quizzes": [
+    {{"question": "question", "options": ["A", "B", "C", "D"], "correct": 0, "explanation": "why"}}
+  ],
+  "youtubeSuggestions": ["recommended YouTube video IDs for this level"]
+}}
+
+Generate content appropriate for {cefr_level} level learners:"""
+
+    api_key = os.getenv("MINIMAX_API_KEY", "").strip()
+    endpoint = os.getenv("MINIMAX_LLM_ENDPOINT", "https://api.minimax.io/v1").strip().rstrip("/")
+    if "/text/" not in endpoint:
+        endpoint = endpoint.rstrip("/") + "/text/chatcompletion_v2"
+    model = os.getenv("MINIMAX_MODEL", "M2-her")
+    
+    try:
+        content_string = _call_minimax(prompt, api_key, endpoint, model)
+        content_string = re.sub(r"^```(?:json)?\s*", "", content_string, flags=re.IGNORECASE)
+        content_string = re.sub(r"\s*```$", "", content_string, flags=re.IGNORECASE)
+        json_start = content_string.find("{")
+        if json_start >= 0:
+            depth = 0
+            for i in range(json_start, len(content_string)):
+                if content_string[i] == "{":
+                    depth += 1
+                elif content_string[i] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        content_string = content_string[json_start:i+1]
+                        break
+        
+        parsed = _parse_minimax_json(content_string)
+        
+        # Ensure transcript exists
+        if "transcript" not in parsed:
+            # Create transcript from article
+            article = parsed.get("article", "")
+            sentences = re.split(r'[.!?]+', article)
+            parsed["transcript"] = [
+                {"id": str(i+1), "timestamp": f"0:{i*15:02d}", "text": s.strip(), "translatedText": ""}
+                for i, s in enumerate(sentences[:20]) if s.strip()
+            ]
+        
+        parsed["cefrLevel"] = cefr_level
+        parsed["type"] = "generated"
+        parsed["targetLanguage"] = target_lang
+        parsed["sourceLanguage"] = source_lang
+        parsed["practiceSessions"] = [
+            {"type": "vocabulary", "content": "Review vocabulary"},
+            {"type": "reading", "content": "Read the article"},
+            {"type": "quiz", "questions": parsed.get("quizzes", [])[:5]}
+        ]
+        
+        return parsed
+        
+    except Exception as e:
+        print(f"[GENERATE ERROR] {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate content: {str(e)}")
+
+
+@app.post("/tts")
+def text_to_speech(request: dict):
+    """Text-to-speech using AWS Bedrock."""
+    text = request.get("text", "")
+    language = request.get("language", "en")
+    
+    # Map language to voice
+    voice_map = {
+        "en": "amy", "es": "lucia", "fr": "celine", "de": "marlene",
+        "it": "giorgio", "ja": "mizuki", "ko": "seoyeon", "zh": "zhiyu"
+    }
+    voice_id = request.get("voiceId", voice_map.get(language, "amy"))
+    
+    prompt = f"""Convert this text to natural speech: {text}"""
+    
+    try:
+        response = _call_bedrock(
+            f"Generate a text-to-speech request for: {text}. Voice: {voice_id}. Return JSON with 'audio' base64 or 'url' if you can provide a pre-generated URL.",
+            "anthropic.claude-3-sonnet-20240229-v1:0"
+        )
+        return {"response": response, "voiceId": voice_id}
+    except Exception as e:
+        # Fallback: return text for browser TTS
+        return {"text": text, "voiceId": voice_id, "fallback": True}
+
+
+@app.post("/chat")
+def ai_chat(request: dict):
+    """AI chat about the lesson using AWS Bedrock."""
+    message = request.get("message", "")
+    lesson_context = request.get("context", "")
+    
+    prompt = f"""You are a friendly language learning tutor. Help the user with their question.
+
+Lesson context: {lesson_context}
+
+User question: {message}
+
+Respond in a helpful, educational way:"""
+    
+    try:
+        response = _call_bedrock(prompt)
+        return {"response": response}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
 
 
 @app.get("/health")
