@@ -1,0 +1,22 @@
+{
+  "$schema": "https://api.vercel.com/vercel.json",
+  "builds": [
+    {
+      "src": "main.py",
+      "use": "@vercel/python",
+      "config": {
+        "runtime": "python3.11"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/",
+      "dest": "/templates/index.html"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "main.py"
+    }
+  ]
+}

@@ -59,6 +59,7 @@ ReadFluent is built with **FastAPI only** (no Next.js). One server serves both t
 ├── .env.example
 ├── templates/
 │   └── index.html       # Dashboard: URL, languages, highlighted text, tabs
+├── browser-extension/   # Chrome extension (URL + highlighted text capture)
 ├── static/
 └── README.md
 ```
